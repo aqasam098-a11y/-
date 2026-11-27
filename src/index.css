@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-urdu-body: 'Noto Naskh Arabic', system-ui, -apple-system, sans-serif;
+    --font-urdu-display: 'Noto Nastaliq Urdu', 'Noto Naskh Arabic', serif;
+    --font-english: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-english-display: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: #102B19;
+    color: #F8F7EA;
+  }
+
+  html[dir="rtl"] body {
+    font-family: var(--font-urdu-body);
+  }
+
+  html[dir="ltr"] body {
+    font-family: var(--font-english);
+  }
+}
+
+.font-urdu-display {
+  font-family: var(--font-urdu-display);
+}
+
+html[dir="ltr"] .font-urdu-display {
+  font-family: var(--font-english-display);
+}
+
+.font-display-heading {
+  font-family: var(--font-english-display);
+}
+
+html[dir="rtl"] .font-display-heading {
+  font-family: var(--font-urdu-display);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.agri-glass {
+  background: rgba(20, 49, 29, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(229, 198, 90, 0.22);
+}
+
+.agri-glass-elevated {
+  background: rgba(38, 59, 32, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(229, 198, 90, 0.28);
+}
+
+@keyframes agriFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-agri-fade-up {
+  animation: agriFadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

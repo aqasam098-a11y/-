@@ -1,0 +1,755 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Startup connection probe
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // --- Global Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'aqasam098@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOptStr(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isReqStr(data, key, minLen, maxLen) {
+      return (key in data) && data[key] is string && data[key].size() >= minLen && data[key].size() <= maxLen;
+    }
+
+    function isOptBool(data, key) {
+      return !(key in data) || (data[key] is bool);
+    }
+
+    function isOptNum(data, key) {
+      return !(key in data) || (data[key] is number);
+    }
+
+    function isOptInt(data, key) {
+      return !(key in data) || (data[key] is int);
+    }
+
+    function isIsoDate(val) {
+      return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isShopkeeperOf(shopId) {
+      let shop = get(/databases/$(database)/documents/commission_shops/$(shopId)).data;
+      return isSignedIn() && (
+        shop.applicantUid == request.auth.uid ||
+        (('assignedShopkeeperUid' in shop) && shop.assignedShopkeeperUid == request.auth.uid)
+      );
+    }
+
+    // --- Validation Blueprints (Anti-Update-Gap) ---
+    function isValidAdminUser(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'grantedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'grantedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == adminId &&
+        isReqStr(data, 'email', 3, 200) &&
+        data.grantedAt is timestamp;
+    }
+
+    function isValidUserPublic(data) {
+      return data.keys().hasAll(['uid', 'nameUr', 'nameEn', 'cityUr', 'cityEn', 'isPublic', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid', 'nameUr', 'nameEn', 'cityUr', 'cityEn',
+          'bioUr', 'bioEn', 'hidePhone', 'completedExchanges',
+          'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        isReqStr(data, 'nameUr', 1, 120) &&
+        isReqStr(data, 'nameEn', 1, 120) &&
+        isReqStr(data, 'cityUr', 1, 80) &&
+        isReqStr(data, 'cityEn', 1, 80) &&
+        isOptStr(data, 'bioUr', 600) &&
+        isOptStr(data, 'bioEn', 600) &&
+        isOptBool(data, 'hidePhone') &&
+        isOptInt(data, 'completedExchanges') &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'whatsapp', 'cityEn',
+          'role', 'assignedKeeperId', 'wishlistIds', 'cartItems',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        isOptStr(data, 'email', 200) &&
+        isReqStr(data, 'displayName', 1, 120) &&
+        isOptStr(data, 'whatsapp', 32) &&
+        isOptStr(data, 'cityEn', 80) &&
+        (data.role in ['admin', 'shopkeeper', 'farmer', 'seller', 'buyer']) &&
+        isOptStr(data, 'assignedKeeperId', 80) &&
+        (!('wishlistIds' in data) || (data.wishlistIds is list && data.wishlistIds.size() <= 100 && (data.wishlistIds.size() == 0 || data.wishlistIds[0] is string))) &&
+        (!('cartItems' in data) || (data.cartItems is list && data.cartItems.size() <= 50 && (data.cartItems.size() == 0 || data.cartItems[0] is map))) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSeedListing(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'nameUr', 'nameEn', 'category',
+          'quantityUr', 'quantityEn', 'listingType', 'cityUr', 'cityEn',
+          'ownerUr', 'ownerEn', 'descriptionUr', 'descriptionEn',
+          'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerUid', 'nameUr', 'nameEn', 'category',
+          'quantityUr', 'quantityEn', 'listingType', 'pricePkr',
+          'unitUr', 'unitEn', 'exchangeNoteUr', 'exchangeNoteEn',
+          'cityUr', 'cityEn', 'areaUr', 'areaEn', 'hideExactLocation',
+          'ownerUr', 'ownerEn', 'whatsapp', 'hidePhone',
+          'seasonUr', 'seasonEn', 'descriptionUr', 'descriptionEn',
+          'imageUrl', 'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerUid) &&
+        isReqStr(data, 'nameUr', 1, 140) &&
+        isReqStr(data, 'nameEn', 1, 140) &&
+        (data.category in ['vegetables', 'fruits', 'grains', 'herbs', 'fodder']) &&
+        isReqStr(data, 'quantityUr', 1, 80) &&
+        isReqStr(data, 'quantityEn', 1, 80) &&
+        (data.listingType in ['exchange', 'sale']) &&
+        isOptNum(data, 'pricePkr') &&
+        isOptStr(data, 'unitUr', 60) &&
+        isOptStr(data, 'unitEn', 60) &&
+        isOptStr(data, 'exchangeNoteUr', 240) &&
+        isOptStr(data, 'exchangeNoteEn', 240) &&
+        isReqStr(data, 'cityUr', 1, 80) &&
+        isReqStr(data, 'cityEn', 1, 80) &&
+        isOptStr(data, 'areaUr', 120) &&
+        isOptStr(data, 'areaEn', 120) &&
+        isOptBool(data, 'hideExactLocation') &&
+        isReqStr(data, 'ownerUr', 1, 120) &&
+        isReqStr(data, 'ownerEn', 1, 120) &&
+        isOptStr(data, 'whatsapp', 32) &&
+        isOptBool(data, 'hidePhone') &&
+        isOptStr(data, 'seasonUr', 80) &&
+        isOptStr(data, 'seasonEn', 80) &&
+        isReqStr(data, 'descriptionUr', 1, 1200) &&
+        isReqStr(data, 'descriptionEn', 1, 1200) &&
+        isOptStr(data, 'imageUrl', 600) &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSeedReview(data) {
+      return data.keys().hasAll(['seedId', 'reviewerUid', 'reviewerName', 'rating', 'comment', 'isPublic', 'createdAt']) &&
+        data.keys().hasOnly([
+          'seedId', 'reviewerUid', 'reviewerName', 'rating',
+          'comment', 'dateLabelUr', 'dateLabelEn', 'isPublic', 'createdAt'
+        ]) &&
+        isValidId(data.seedId) &&
+        isValidId(data.reviewerUid) &&
+        isReqStr(data, 'reviewerName', 1, 120) &&
+        data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+        isReqStr(data, 'comment', 1, 800) &&
+        isOptStr(data, 'dateLabelUr', 60) &&
+        isOptStr(data, 'dateLabelEn', 60) &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidDiaryPost(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'titleUr', 'titleEn', 'topic',
+          'contentUr', 'contentEn', 'authorUr', 'authorEn',
+          'cityUr', 'cityEn', 'likesCount', 'isPublic',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerUid', 'titleUr', 'titleEn', 'topic',
+          'contentUr', 'contentEn', 'authorUr', 'authorEn',
+          'cityUr', 'cityEn', 'dateUr', 'dateEn', 'imageUrl',
+          'likesCount', 'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerUid) &&
+        isReqStr(data, 'titleUr', 1, 200) &&
+        isReqStr(data, 'titleEn', 1, 200) &&
+        (data.topic in ['soil_prep', 'organic_fertilizer', 'pest_control', 'seed_saving']) &&
+        isReqStr(data, 'contentUr', 1, 2500) &&
+        isReqStr(data, 'contentEn', 1, 2500) &&
+        isReqStr(data, 'authorUr', 1, 120) &&
+        isReqStr(data, 'authorEn', 1, 120) &&
+        isReqStr(data, 'cityUr', 1, 80) &&
+        isReqStr(data, 'cityEn', 1, 80) &&
+        isOptStr(data, 'dateUr', 60) &&
+        isOptStr(data, 'dateEn', 60) &&
+        isOptStr(data, 'imageUrl', 600) &&
+        data.likesCount is int && data.likesCount >= 0 &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDiaryLike(data) {
+      return data.keys().hasAll(['uid', 'postId', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'postId', 'createdAt']) &&
+        isValidId(data.uid) &&
+        isValidId(data.postId) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidDiaryComment(data) {
+      return data.keys().hasAll(['postId', 'authorUid', 'authorName', 'text', 'isPublic', 'createdAt']) &&
+        data.keys().hasOnly(['postId', 'authorUid', 'authorName', 'text', 'timestamp', 'isPublic', 'createdAt']) &&
+        isValidId(data.postId) &&
+        isValidId(data.authorUid) &&
+        isReqStr(data, 'authorName', 1, 120) &&
+        isReqStr(data, 'text', 1, 800) &&
+        isOptStr(data, 'timestamp', 60) &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCommissionShop(data) {
+      return data.keys().hasAll([
+          'id', 'applicantUid', 'shopNameUr', 'shopNameEn',
+          'ownerUr', 'ownerEn', 'cityUr', 'cityEn',
+          'mandiUr', 'mandiEn', 'annualRentPkr', 'startDate',
+          'expiryDate', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'applicantUid', 'assignedShopkeeperUid', 'assignedShopkeeperId',
+          'shopNameUr', 'shopNameEn', 'logoEmoji', 'coverImageUrl',
+          'descriptionUr', 'descriptionEn', 'ownerUr', 'ownerEn',
+          'cityUr', 'cityEn', 'districtUr', 'districtEn',
+          'mandiUr', 'mandiEn', 'specialtyUr', 'specialtyEn',
+          'rateNoteUr', 'rateNoteEn', 'commissionPercent',
+          'whatsapp', 'hidePhone', 'verified', 'featured',
+          'annualRentPkr', 'startDate', 'expiryDate', 'status',
+          'renewalRequested', 'rejectionReason', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.applicantUid) &&
+        isOptStr(data, 'assignedShopkeeperUid', 128) &&
+        isOptStr(data, 'assignedShopkeeperId', 80) &&
+        isReqStr(data, 'shopNameUr', 1, 160) &&
+        isReqStr(data, 'shopNameEn', 1, 160) &&
+        isOptStr(data, 'logoEmoji', 16) &&
+        isOptStr(data, 'coverImageUrl', 600) &&
+        isOptStr(data, 'descriptionUr', 1200) &&
+        isOptStr(data, 'descriptionEn', 1200) &&
+        isReqStr(data, 'ownerUr', 1, 120) &&
+        isReqStr(data, 'ownerEn', 1, 120) &&
+        isReqStr(data, 'cityUr', 1, 80) &&
+        isReqStr(data, 'cityEn', 1, 80) &&
+        isOptStr(data, 'districtUr', 100) &&
+        isOptStr(data, 'districtEn', 100) &&
+        isReqStr(data, 'mandiUr', 1, 200) &&
+        isReqStr(data, 'mandiEn', 1, 200) &&
+        isOptStr(data, 'specialtyUr', 300) &&
+        isOptStr(data, 'specialtyEn', 300) &&
+        isOptStr(data, 'rateNoteUr', 240) &&
+        isOptStr(data, 'rateNoteEn', 240) &&
+        isOptStr(data, 'commissionPercent', 20) &&
+        isOptStr(data, 'whatsapp', 32) &&
+        isOptBool(data, 'hidePhone') &&
+        isOptBool(data, 'verified') &&
+        isOptBool(data, 'featured') &&
+        data.annualRentPkr is number && data.annualRentPkr >= 0 &&
+        isIsoDate(data.startDate) &&
+        isIsoDate(data.expiryDate) &&
+        (data.status in ['active', 'pending', 'suspended', 'expired', 'rejected']) &&
+        isOptBool(data, 'renewalRequested') &&
+        isOptStr(data, 'rejectionReason', 400) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidShopProduct(data) {
+      return data.keys().hasAll([
+          'id', 'shopId', 'nameUr', 'nameEn', 'category',
+          'pricePkr', 'unitUr', 'unitEn', 'stockQty',
+          'stockCount', 'inStock', 'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'shopId', 'shopkeeperUid', 'nameUr', 'nameEn',
+          'varietyUr', 'varietyEn', 'category', 'pricePkr',
+          'pricePerBagPkr', 'pricePerKgPkr', 'unitUr', 'unitEn',
+          'stockQty', 'stockCount', 'minOrderQty', 'inStock',
+          'featured', 'isPublic', 'imageUrl', 'galleryUrls',
+          'descriptionUr', 'descriptionEn', 'cropInfoUr', 'cropInfoEn',
+          'lastOrderId', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.shopId) &&
+        isOptStr(data, 'shopkeeperUid', 128) &&
+        isReqStr(data, 'nameUr', 1, 160) &&
+        isReqStr(data, 'nameEn', 1, 160) &&
+        isOptStr(data, 'varietyUr', 120) &&
+        isOptStr(data, 'varietyEn', 120) &&
+        (data.category in ['vegetables', 'fruits', 'grains', 'herbs', 'fodder']) &&
+        data.pricePkr is number && data.pricePkr >= 0 &&
+        isOptNum(data, 'pricePerBagPkr') &&
+        isOptNum(data, 'pricePerKgPkr') &&
+        isReqStr(data, 'unitUr', 1, 60) &&
+        isReqStr(data, 'unitEn', 1, 60) &&
+        isReqStr(data, 'stockQty', 1, 60) &&
+        data.stockCount is int && data.stockCount >= 0 &&
+        isOptInt(data, 'minOrderQty') &&
+        data.inStock is bool &&
+        isOptBool(data, 'featured') &&
+        data.isPublic is bool &&
+        isOptStr(data, 'imageUrl', 600) &&
+        (!('galleryUrls' in data) || (data.galleryUrls is list && data.galleryUrls.size() <= 6 && (data.galleryUrls.size() == 0 || data.galleryUrls[0] is string))) &&
+        isOptStr(data, 'descriptionUr', 1200) &&
+        isOptStr(data, 'descriptionEn', 1200) &&
+        isOptStr(data, 'cropInfoUr', 500) &&
+        isOptStr(data, 'cropInfoEn', 500) &&
+        isOptStr(data, 'lastOrderId', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidShopOrder(data) {
+      return data.keys().hasAll([
+          'id', 'shopId', 'buyerUid', 'productId',
+          'productNameUr', 'productNameEn', 'quantity', 'totalPkr',
+          'customerName', 'customerPhone', 'customerCity',
+          'paymentNote', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'shopId', 'shopkeeperUid', 'buyerUid', 'productId',
+          'productNameUr', 'productNameEn', 'quantity', 'unitLabel',
+          'totalPkr', 'customerName', 'customerPhone', 'customerCity',
+          'paymentNote', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.shopId) &&
+        isOptStr(data, 'shopkeeperUid', 128) &&
+        isValidId(data.buyerUid) &&
+        isValidId(data.productId) &&
+        isReqStr(data, 'productNameUr', 1, 160) &&
+        isReqStr(data, 'productNameEn', 1, 160) &&
+        data.quantity is int && data.quantity >= 1 &&
+        isOptStr(data, 'unitLabel', 60) &&
+        data.totalPkr is number && data.totalPkr >= 0 &&
+        isReqStr(data, 'customerName', 1, 120) &&
+        isReqStr(data, 'customerPhone', 4, 32) &&
+        isReqStr(data, 'customerCity', 1, 80) &&
+        data.paymentNote is string && data.paymentNote.size() <= 160 &&
+        (data.status in ['pending', 'confirmed', 'dispatched', 'completed', 'cancelled']) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidShopRentPayment(data) {
+      return data.keys().hasAll([
+          'id', 'shopId', 'recordedByUid', 'amountPkr', 'method',
+          'reference', 'paymentDate', 'status', 'recordedBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'shopId', 'shopkeeperUid', 'recordedByUid',
+          'amountPkr', 'method', 'reference', 'paymentDate',
+          'status', 'note', 'recordedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.shopId) &&
+        isOptStr(data, 'shopkeeperUid', 128) &&
+        isValidId(data.recordedByUid) &&
+        data.amountPkr is number && data.amountPkr > 0 &&
+        (data.method in ['Easypaisa', 'JazzCash', 'Bank Transfer', 'Cash']) &&
+        isReqStr(data, 'reference', 1, 100) &&
+        isIsoDate(data.paymentDate) &&
+        (data.status in ['confirmed', 'pending', 'rejected']) &&
+        isOptStr(data, 'note', 300) &&
+        isReqStr(data, 'recordedBy', 1, 120) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMandiRate(data) {
+      return data.keys().hasAll([
+          'id', 'cropNameUr', 'cropNameEn', 'cityUr', 'cityEn',
+          'ratePkr', 'unitUr', 'unitEn', 'trend', 'updatedDate',
+          'isPublic', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'cropNameUr', 'cropNameEn', 'cityUr', 'cityEn',
+          'ratePkr', 'unitUr', 'unitEn', 'trend', 'updatedDate',
+          'linkedShopId', 'linkedProductId', 'isPublic',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isReqStr(data, 'cropNameUr', 1, 140) &&
+        isReqStr(data, 'cropNameEn', 1, 140) &&
+        isReqStr(data, 'cityUr', 1, 80) &&
+        isReqStr(data, 'cityEn', 1, 80) &&
+        data.ratePkr is number && data.ratePkr >= 0 &&
+        isReqStr(data, 'unitUr', 1, 60) &&
+        isReqStr(data, 'unitEn', 1, 60) &&
+        (data.trend in ['up', 'down', 'stable']) &&
+        isIsoDate(data.updatedDate) &&
+        isOptStr(data, 'linkedShopId', 128) &&
+        isOptStr(data, 'linkedProductId', 128) &&
+        data.isPublic is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isAdmin() && isValidId(adminId) && isValidAdminUser(incoming(), adminId) &&
+        incoming().grantedAt == request.time;
+      allow update: if isAdmin() && isValidId(adminId) && isValidAdminUser(incoming(), adminId) &&
+        incoming().uid == existing().uid &&
+        incoming().grantedAt == existing().grantedAt;
+      allow delete: if isAdmin() && isValidId(adminId);
+    }
+
+    match /users_public/{userId} {
+      allow get: if isValidId(userId) && (existing().isPublic == true || isOwner(userId) || isAdmin());
+      allow list: if existing().isPublic == true || (isSignedIn() && existing().uid == request.auth.uid) || isBootstrappedAdmin();
+      allow create: if isVerifiedUser() && isValidId(userId) && isValidUserPublic(incoming()) &&
+        (isOwner(userId) || isAdmin()) &&
+        (incoming().uid == userId) &&
+        (isAdmin() || !('completedExchanges' in incoming()) || incoming().completedExchanges == 0) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(userId) && isValidUserPublic(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'nameUr', 'nameEn', 'cityUr', 'cityEn', 'bioUr', 'bioEn',
+            'hidePhone', 'isPublic', 'updatedAt'
+          ]))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /users_private/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if (isSignedIn() && existing().uid == request.auth.uid) || isBootstrappedAdmin();
+      allow create: if isVerifiedUser() && isValidId(userId) && isValidUserPrivate(incoming()) &&
+        (isOwner(userId) || isAdmin()) &&
+        incoming().uid == userId &&
+        (incoming().role != 'admin' || isAdmin()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(userId) && isValidUserPrivate(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (isOwner(userId) &&
+            (incoming().role != 'admin' || existing().role == 'admin') &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'email', 'displayName', 'whatsapp', 'cityEn', 'role',
+              'assignedKeeperId', 'wishlistIds', 'cartItems', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    match /seeds/{seedId} {
+      allow get: if isValidId(seedId) && (existing().isPublic == true || isOwner(existing().ownerUid) || isAdmin());
+      allow list: if existing().isPublic == true || (isSignedIn() && existing().ownerUid == request.auth.uid) || isBootstrappedAdmin();
+      allow create: if isVerifiedUser() && isValidId(seedId) && isValidSeedListing(incoming()) &&
+        incoming().id == seedId &&
+        (incoming().ownerUid == request.auth.uid || isAdmin()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(seedId) && isValidSeedListing(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (isOwner(existing().ownerUid) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'nameUr', 'nameEn', 'category', 'quantityUr', 'quantityEn',
+            'listingType', 'pricePkr', 'unitUr', 'unitEn', 'exchangeNoteUr',
+            'exchangeNoteEn', 'cityUr', 'cityEn', 'areaUr', 'areaEn',
+            'hideExactLocation', 'ownerUr', 'ownerEn', 'whatsapp', 'hidePhone',
+            'seasonUr', 'seasonEn', 'descriptionUr', 'descriptionEn',
+            'imageUrl', 'isPublic', 'updatedAt'
+          ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(seedId) && (isOwner(existing().ownerUid) || isAdmin());
+
+      match /reviews/{reviewId} {
+        allow get: if isValidId(seedId) && isValidId(reviewId) && (existing().isPublic == true || isOwner(existing().reviewerUid) || isAdmin());
+        allow list: if existing().isPublic == true || (isSignedIn() && existing().reviewerUid == request.auth.uid) || isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(seedId) && isValidId(reviewId) && isValidSeedReview(incoming()) &&
+          incoming().seedId == seedId &&
+          incoming().reviewerUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/seeds/$(seedId));
+        allow update: if false;
+        allow delete: if isVerifiedUser() && isValidId(seedId) && isValidId(reviewId) && (isOwner(existing().reviewerUid) || isAdmin());
+      }
+    }
+
+    match /diary_posts/{postId} {
+      allow get: if isValidId(postId) && (existing().isPublic == true || isOwner(existing().ownerUid) || isAdmin());
+      allow list: if existing().isPublic == true || (isSignedIn() && existing().ownerUid == request.auth.uid) || isBootstrappedAdmin();
+      allow create: if isVerifiedUser() && isValidId(postId) && isValidDiaryPost(incoming()) &&
+        incoming().id == postId &&
+        (isAdmin() || (incoming().ownerUid == request.auth.uid && incoming().likesCount == 0)) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(postId) && isValidDiaryPost(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          // Action: Edit post content (owner)
+          (isOwner(existing().ownerUid) && incoming().diff(existing()).affectedKeys().hasOnly([
+            'titleUr', 'titleEn', 'topic', 'contentUr', 'contentEn',
+            'authorUr', 'authorEn', 'cityUr', 'cityEn', 'dateUr', 'dateEn',
+            'imageUrl', 'isPublic', 'updatedAt'
+          ])) ||
+          // Action: Atomic like / unlike count update
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'updatedAt']) && (
+            (incoming().likesCount == existing().likesCount + 1 &&
+              !exists(/databases/$(database)/documents/diary_posts/$(postId)/likes/$(request.auth.uid)) &&
+              existsAfter(/databases/$(database)/documents/diary_posts/$(postId)/likes/$(request.auth.uid))) ||
+            (incoming().likesCount == existing().likesCount - 1 &&
+              incoming().likesCount >= 0 &&
+              exists(/databases/$(database)/documents/diary_posts/$(postId)/likes/$(request.auth.uid)) &&
+              !existsAfter(/databases/$(database)/documents/diary_posts/$(postId)/likes/$(request.auth.uid)))
+          ))
+        );
+      allow delete: if isVerifiedUser() && isValidId(postId) && (isOwner(existing().ownerUid) || isAdmin());
+
+      match /likes/{uid} {
+        allow get: if isValidId(postId) && isValidId(uid) && (isOwner(uid) || isAdmin());
+        allow list: if (isSignedIn() && existing().uid == request.auth.uid) || isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(postId) && isValidId(uid) && isValidDiaryLike(incoming()) &&
+          isOwner(uid) &&
+          incoming().uid == uid &&
+          incoming().postId == postId &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/diary_posts/$(postId)) &&
+          getAfter(/databases/$(database)/documents/diary_posts/$(postId)).data.likesCount == get(/databases/$(database)/documents/diary_posts/$(postId)).data.likesCount + 1;
+        allow update: if false;
+        allow delete: if isVerifiedUser() && isValidId(postId) && isValidId(uid) && (isOwner(uid) || isAdmin()) && (
+          isAdmin() ||
+          !exists(/databases/$(database)/documents/diary_posts/$(postId)) ||
+          getAfter(/databases/$(database)/documents/diary_posts/$(postId)).data.likesCount == get(/databases/$(database)/documents/diary_posts/$(postId)).data.likesCount - 1
+        );
+      }
+
+      match /comments/{commentId} {
+        allow get: if isValidId(postId) && isValidId(commentId) && (existing().isPublic == true || isOwner(existing().authorUid) || isAdmin());
+        allow list: if existing().isPublic == true || (isSignedIn() && existing().authorUid == request.auth.uid) || isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(postId) && isValidId(commentId) && isValidDiaryComment(incoming()) &&
+          incoming().postId == postId &&
+          incoming().authorUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/diary_posts/$(postId));
+        allow update: if false;
+        allow delete: if isVerifiedUser() && isValidId(postId) && isValidId(commentId) && (isOwner(existing().authorUid) || isAdmin());
+      }
+    }
+
+    match /commission_shops/{shopId} {
+      allow get: if isValidId(shopId) && (
+        existing().status == 'active' ||
+        isOwner(existing().applicantUid) ||
+        (isSignedIn() && ('assignedShopkeeperUid' in existing()) && existing().assignedShopkeeperUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if existing().status == 'active' ||
+        (isSignedIn() && existing().applicantUid == request.auth.uid) ||
+        (isSignedIn() && ('assignedShopkeeperUid' in existing()) && existing().assignedShopkeeperUid == request.auth.uid) ||
+        isBootstrappedAdmin();
+      allow create: if isVerifiedUser() && isValidId(shopId) && isValidCommissionShop(incoming()) &&
+        incoming().id == shopId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (incoming().applicantUid == request.auth.uid &&
+            incoming().status == 'pending' &&
+            (!('verified' in incoming()) || incoming().verified == false) &&
+            (!('featured' in incoming()) || incoming().featured == false))
+        );
+      allow update: if isVerifiedUser() && isValidId(shopId) && isValidCommissionShop(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().applicantUid == existing().applicantUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          ((isOwner(existing().applicantUid) || (('assignedShopkeeperUid' in existing()) && existing().assignedShopkeeperUid == request.auth.uid)) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'renewalRequested', 'descriptionUr', 'descriptionEn',
+              'specialtyUr', 'specialtyEn', 'rateNoteUr', 'rateNoteEn',
+              'whatsapp', 'hidePhone', 'coverImageUrl', 'logoEmoji', 'updatedAt'
+            ]))
+        );
+      allow delete: if isAdmin() && isValidId(shopId);
+
+      match /products/{productId} {
+        allow get: if isValidId(shopId) && isValidId(productId) && (
+          existing().isPublic == true || isShopkeeperOf(shopId) || isAdmin()
+        );
+        allow list: if existing().isPublic == true ||
+          (isSignedIn() && ('shopkeeperUid' in existing()) && existing().shopkeeperUid == request.auth.uid) ||
+          isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(shopId) && isValidId(productId) && isValidShopProduct(incoming()) &&
+          incoming().id == productId &&
+          incoming().shopId == shopId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/commission_shops/$(shopId)) &&
+          (isAdmin() || isShopkeeperOf(shopId));
+        allow update: if isVerifiedUser() && isValidId(shopId) && isValidId(productId) && isValidShopProduct(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().shopId == existing().shopId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/commission_shops/$(shopId)) && (
+            isAdmin() ||
+            // Action: Shopkeeper product edit
+            (isShopkeeperOf(shopId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'nameUr', 'nameEn', 'varietyUr', 'varietyEn', 'category',
+              'pricePkr', 'pricePerBagPkr', 'pricePerKgPkr', 'unitUr', 'unitEn',
+              'stockQty', 'stockCount', 'minOrderQty', 'inStock', 'featured',
+              'isPublic', 'imageUrl', 'galleryUrls', 'descriptionUr',
+              'descriptionEn', 'cropInfoUr', 'cropInfoEn', 'updatedAt'
+            ])) ||
+            // Action: Buyer atomic stock decrement paired with newly created order
+            (get(/databases/$(database)/documents/commission_shops/$(shopId)).data.status == 'active' &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'stockCount', 'stockQty', 'inStock', 'lastOrderId', 'updatedAt'
+              ]) &&
+              incoming().stockCount >= 0 &&
+              incoming().stockCount < existing().stockCount &&
+              ('lastOrderId' in incoming()) &&
+              isValidId(incoming().lastOrderId) &&
+              !exists(/databases/$(database)/documents/commission_shops/$(shopId)/orders/$(incoming().lastOrderId)) &&
+              existsAfter(/databases/$(database)/documents/commission_shops/$(shopId)/orders/$(incoming().lastOrderId)) &&
+              getAfter(/databases/$(database)/documents/commission_shops/$(shopId)/orders/$(incoming().lastOrderId)).data.buyerUid == request.auth.uid &&
+              getAfter(/databases/$(database)/documents/commission_shops/$(shopId)/orders/$(incoming().lastOrderId)).data.productId == productId)
+          );
+        allow delete: if isVerifiedUser() && isValidId(shopId) && isValidId(productId) && (isAdmin() || isShopkeeperOf(shopId));
+      }
+
+      match /orders/{orderId} {
+        allow get: if isValidId(shopId) && isValidId(orderId) && (
+          isOwner(existing().buyerUid) || isShopkeeperOf(shopId) || isAdmin()
+        );
+        allow list: if (isSignedIn() && (
+          existing().buyerUid == request.auth.uid ||
+          (('shopkeeperUid' in existing()) && existing().shopkeeperUid == request.auth.uid)
+        )) || isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(shopId) && isValidId(orderId) && isValidShopOrder(incoming()) &&
+          incoming().id == orderId &&
+          incoming().shopId == shopId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/commission_shops/$(shopId)) &&
+          get(/databases/$(database)/documents/commission_shops/$(shopId)).data.status == 'active' && (
+            isAdmin() ||
+            (incoming().buyerUid == request.auth.uid && incoming().status == 'pending')
+          );
+        allow update: if isVerifiedUser() && isValidId(shopId) && isValidId(orderId) && isValidShopOrder(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().shopId == existing().shopId &&
+          incoming().buyerUid == existing().buyerUid &&
+          incoming().productId == existing().productId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time && (
+            isAdmin() ||
+            // Terminal State Locking: non-admins cannot mutate completed or cancelled orders
+            (existing().status != 'completed' && existing().status != 'cancelled' && (
+              (isShopkeeperOf(shopId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+              (isOwner(existing().buyerUid) && existing().status == 'pending' && incoming().status == 'cancelled' &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+            ))
+          );
+        allow delete: if isAdmin() && isValidId(shopId) && isValidId(orderId);
+      }
+
+      match /rent_payments/{paymentId} {
+        allow get: if isValidId(shopId) && isValidId(paymentId) && (isShopkeeperOf(shopId) || isAdmin());
+        allow list: if (isSignedIn() && ('shopkeeperUid' in existing()) && existing().shopkeeperUid == request.auth.uid) ||
+          isBootstrappedAdmin();
+        allow create: if isVerifiedUser() && isValidId(shopId) && isValidId(paymentId) && isValidShopRentPayment(incoming()) &&
+          incoming().id == paymentId &&
+          incoming().shopId == shopId &&
+          incoming().recordedByUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/commission_shops/$(shopId)) && (
+            isAdmin() ||
+            (isShopkeeperOf(shopId) && incoming().status == 'pending')
+          );
+        allow update: if isAdmin() && isValidId(shopId) && isValidId(paymentId) && isValidShopRentPayment(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().shopId == existing().shopId &&
+          incoming().recordedByUid == existing().recordedByUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time;
+        allow delete: if isAdmin() && isValidId(shopId) && isValidId(paymentId);
+      }
+    }
+
+    match /mandi_rates/{rateId} {
+      allow get: if isValidId(rateId) && (existing().isPublic == true || isAdmin());
+      allow list: if existing().isPublic == true || isBootstrappedAdmin();
+      allow create: if isAdmin() && isValidId(rateId) && isValidMandiRate(incoming()) &&
+        incoming().id == rateId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(rateId) && isValidMandiRate(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(rateId);
+    }
+  }
+}

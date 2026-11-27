@@ -1,0 +1,505 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Trusted admin account record controlling platform shops, rents, and mandi rates.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 200
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "grantedAt"]
+    },
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Publicly visible non-PII farmer and shopkeeper directory profile.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "nameUr": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "cityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "bioUr": { "type": "string", "maxLength": 600 },
+        "bioEn": { "type": "string", "maxLength": 600 },
+        "hidePhone": { "type": "boolean" },
+        "completedExchanges": { "type": "integer" },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "nameUr", "nameEn", "cityUr", "cityEn", "isPublic", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Private PII, selected marketplace role, saved wishlist IDs, and cart items isolated to the account owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": { "type": "string", "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "whatsapp": { "type": "string", "maxLength": 32 },
+        "cityEn": { "type": "string", "maxLength": 80 },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "shopkeeper", "farmer", "seller", "buyer"]
+        },
+        "assignedKeeperId": { "type": "string", "maxLength": 80 },
+        "wishlistIds": {
+          "type": "array",
+          "description": "Bounded list of saved seed document IDs (max 100)."
+        },
+        "cartItems": {
+          "type": "array",
+          "description": "Bounded shopping cart items for commission shop checkout (max 50)."
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "SeedListing": {
+      "title": "SeedListing",
+      "description": "Heirloom seed exchange or sale listing posted by a farmer or grower.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nameUr": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "category": { "type": "string", "enum": ["vegetables", "fruits", "grains", "herbs", "fodder"] },
+        "quantityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "quantityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "listingType": { "type": "string", "enum": ["exchange", "sale"] },
+        "pricePkr": { "type": "number" },
+        "unitUr": { "type": "string", "maxLength": 60 },
+        "unitEn": { "type": "string", "maxLength": 60 },
+        "exchangeNoteUr": { "type": "string", "maxLength": 240 },
+        "exchangeNoteEn": { "type": "string", "maxLength": 240 },
+        "cityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "areaUr": { "type": "string", "maxLength": 120 },
+        "areaEn": { "type": "string", "maxLength": 120 },
+        "hideExactLocation": { "type": "boolean" },
+        "ownerUr": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ownerEn": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "whatsapp": { "type": "string", "maxLength": 32 },
+        "hidePhone": { "type": "boolean" },
+        "seasonUr": { "type": "string", "maxLength": 80 },
+        "seasonEn": { "type": "string", "maxLength": 80 },
+        "descriptionUr": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "descriptionEn": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "imageUrl": { "type": "string", "maxLength": 600 },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "nameUr",
+        "nameEn",
+        "category",
+        "quantityUr",
+        "quantityEn",
+        "listingType",
+        "cityUr",
+        "cityEn",
+        "ownerUr",
+        "ownerEn",
+        "descriptionUr",
+        "descriptionEn",
+        "isPublic",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SeedReviewDoc": {
+      "title": "SeedReviewDoc",
+      "description": "Farmer rating and review for a specific seed listing.",
+      "type": "object",
+      "properties": {
+        "seedId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reviewerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reviewerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "dateLabelUr": { "type": "string", "maxLength": 60 },
+        "dateLabelEn": { "type": "string", "maxLength": 60 },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["seedId", "reviewerUid", "reviewerName", "rating", "comment", "isPublic", "createdAt"]
+    },
+    "DiaryPostDoc": {
+      "title": "DiaryPostDoc",
+      "description": "Kisan Diary article sharing organic farming tips and seed-saving notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "titleUr": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "titleEn": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "topic": { "type": "string", "enum": ["soil_prep", "organic_fertilizer", "pest_control", "seed_saving"] },
+        "contentUr": { "type": "string", "minLength": 1, "maxLength": 2500 },
+        "contentEn": { "type": "string", "minLength": 1, "maxLength": 2500 },
+        "authorUr": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "authorEn": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "cityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "dateUr": { "type": "string", "maxLength": 60 },
+        "dateEn": { "type": "string", "maxLength": 60 },
+        "imageUrl": { "type": "string", "maxLength": 600 },
+        "likesCount": { "type": "integer" },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "titleUr",
+        "titleEn",
+        "topic",
+        "contentUr",
+        "contentEn",
+        "authorUr",
+        "authorEn",
+        "cityUr",
+        "cityEn",
+        "likesCount",
+        "isPublic",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DiaryLikeDoc": {
+      "title": "DiaryLikeDoc",
+      "description": "One-per-user like marker synchronized atomically with DiaryPostDoc.likesCount.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "postId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "postId", "createdAt"]
+    },
+    "DiaryCommentDoc": {
+      "title": "DiaryCommentDoc",
+      "description": "Comment left by a community member on a Kisan Diary post.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "timestamp": { "type": "string", "maxLength": 60 },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorUid", "authorName", "text", "isPublic", "createdAt"]
+    },
+    "CommissionShopDoc": {
+      "title": "CommissionShopDoc",
+      "description": "Annual rental commission shop managed by Platform Admin and assigned to a shopkeeper.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicantUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assignedShopkeeperUid": { "type": "string", "maxLength": 128 },
+        "assignedShopkeeperId": { "type": "string", "maxLength": 80 },
+        "shopNameUr": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "shopNameEn": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "logoEmoji": { "type": "string", "maxLength": 16 },
+        "coverImageUrl": { "type": "string", "maxLength": 600 },
+        "descriptionUr": { "type": "string", "maxLength": 1200 },
+        "descriptionEn": { "type": "string", "maxLength": 1200 },
+        "ownerUr": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ownerEn": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "cityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "districtUr": { "type": "string", "maxLength": 100 },
+        "districtEn": { "type": "string", "maxLength": 100 },
+        "mandiUr": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "mandiEn": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "specialtyUr": { "type": "string", "maxLength": 300 },
+        "specialtyEn": { "type": "string", "maxLength": 300 },
+        "rateNoteUr": { "type": "string", "maxLength": 240 },
+        "rateNoteEn": { "type": "string", "maxLength": 240 },
+        "commissionPercent": { "type": "string", "maxLength": 20 },
+        "whatsapp": { "type": "string", "maxLength": 32 },
+        "hidePhone": { "type": "boolean" },
+        "verified": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "annualRentPkr": { "type": "number" },
+        "startDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "expiryDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended", "expired", "rejected"] },
+        "renewalRequested": { "type": "boolean" },
+        "rejectionReason": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "applicantUid",
+        "shopNameUr",
+        "shopNameEn",
+        "ownerUr",
+        "ownerEn",
+        "cityUr",
+        "cityEn",
+        "mandiUr",
+        "mandiEn",
+        "annualRentPkr",
+        "startDate",
+        "expiryDate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ShopProductDoc": {
+      "title": "ShopProductDoc",
+      "description": "Seed or grain product sold directly by an active Commission Shop.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopkeeperUid": { "type": "string", "maxLength": 128 },
+        "nameUr": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "varietyUr": { "type": "string", "maxLength": 120 },
+        "varietyEn": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "enum": ["vegetables", "fruits", "grains", "herbs", "fodder"] },
+        "pricePkr": { "type": "number" },
+        "pricePerBagPkr": { "type": "number" },
+        "pricePerKgPkr": { "type": "number" },
+        "unitUr": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "unitEn": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "stockQty": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "stockCount": { "type": "integer" },
+        "minOrderQty": { "type": "integer" },
+        "inStock": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "isPublic": { "type": "boolean" },
+        "imageUrl": { "type": "string", "maxLength": 600 },
+        "galleryUrls": {
+          "type": "array",
+          "description": "Bounded gallery image paths (max 6)."
+        },
+        "descriptionUr": { "type": "string", "maxLength": 1200 },
+        "descriptionEn": { "type": "string", "maxLength": 1200 },
+        "cropInfoUr": { "type": "string", "maxLength": 500 },
+        "cropInfoEn": { "type": "string", "maxLength": 500 },
+        "lastOrderId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "shopId",
+        "nameUr",
+        "nameEn",
+        "category",
+        "pricePkr",
+        "unitUr",
+        "unitEn",
+        "stockQty",
+        "stockCount",
+        "inStock",
+        "isPublic",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ShopOrderDoc": {
+      "title": "ShopOrderDoc",
+      "description": "Direct customer-to-shopkeeper order with isolated customer contact details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopkeeperUid": { "type": "string", "maxLength": 128 },
+        "buyerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productNameUr": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "productNameEn": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "quantity": { "type": "integer" },
+        "unitLabel": { "type": "string", "maxLength": 60 },
+        "totalPkr": { "type": "number" },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "customerCity": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "paymentNote": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "dispatched", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "shopId",
+        "buyerUid",
+        "productId",
+        "productNameUr",
+        "productNameEn",
+        "quantity",
+        "totalPkr",
+        "customerName",
+        "customerPhone",
+        "customerCity",
+        "paymentNote",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ShopRentPaymentDoc": {
+      "title": "ShopRentPaymentDoc",
+      "description": "Annual shop rental payment submitted by a shopkeeper or verified by Platform Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "shopkeeperUid": { "type": "string", "maxLength": 128 },
+        "recordedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amountPkr": { "type": "number" },
+        "method": { "type": "string", "enum": ["Easypaisa", "JazzCash", "Bank Transfer", "Cash"] },
+        "reference": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "paymentDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["confirmed", "pending", "rejected"] },
+        "note": { "type": "string", "maxLength": 300 },
+        "recordedBy": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "shopId",
+        "recordedByUid",
+        "amountPkr",
+        "method",
+        "reference",
+        "paymentDate",
+        "status",
+        "recordedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MandiRateDoc": {
+      "title": "MandiRateDoc",
+      "description": "Official mandi grain and seed market rate linked to a commission shop product.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cropNameUr": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "cropNameEn": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "cityUr": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cityEn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "ratePkr": { "type": "number" },
+        "unitUr": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "unitEn": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "trend": { "type": "string", "enum": ["up", "down", "stable"] },
+        "updatedDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "linkedShopId": { "type": "string", "maxLength": 128 },
+        "linkedProductId": { "type": "string", "maxLength": 128 },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "cropNameUr",
+        "cropNameEn",
+        "cityUr",
+        "cityEn",
+        "ratePkr",
+        "unitUr",
+        "unitEn",
+        "trend",
+        "updatedDate",
+        "isPublic",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin UID registry."
+    },
+    "/users_public/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Non-PII farmer and shopkeeper public profiles."
+    },
+    "/users_private/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private user PII, role assignment, saved wishlist IDs, and cart items."
+    },
+    "/seeds/{seedId}": {
+      "schema": { "$ref": "#/entities/SeedListing" },
+      "description": "Public heirloom seed exchange and sale listings."
+    },
+    "/seeds/{seedId}/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/SeedReviewDoc" },
+      "description": "Verified farmer reviews for seed listings."
+    },
+    "/diary_posts/{postId}": {
+      "schema": { "$ref": "#/entities/DiaryPostDoc" },
+      "description": "Public Kisan Diary farming articles and seed-saving tips."
+    },
+    "/diary_posts/{postId}/likes/{uid}": {
+      "schema": { "$ref": "#/entities/DiaryLikeDoc" },
+      "description": "Atomic per-user diary post like markers."
+    },
+    "/diary_posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/DiaryCommentDoc" },
+      "description": "Community comments on Kisan Diary articles."
+    },
+    "/commission_shops/{shopId}": {
+      "schema": { "$ref": "#/entities/CommissionShopDoc" },
+      "description": "Annual rental commission shops and pending applications."
+    },
+    "/commission_shops/{shopId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/ShopProductDoc" },
+      "description": "Products listed in an annual rental commission shop."
+    },
+    "/commission_shops/{shopId}/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/ShopOrderDoc" },
+      "description": "Direct customer orders scoped to buyer, shopkeeper, and admin."
+    },
+    "/commission_shops/{shopId}/rent_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/ShopRentPaymentDoc" },
+      "description": "Annual shop rental payments and renewal verifications."
+    },
+    "/mandi_rates/{rateId}": {
+      "schema": { "$ref": "#/entities/MandiRateDoc" },
+      "description": "Admin-managed mandi rates linked to commission shop products."
+    }
+  }
+}
